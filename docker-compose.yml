@@ -1,0 +1,53 @@
+version: "3"
+services:
+  frontend:
+    build: ./python-frontend
+    links:
+      - goweb-svc
+      - pyweb-svc
+    environment:
+      - GO_BACKEND=http://hostip:8081/
+      - PY_BACKEND=http://hostip:5004/
+    ports:
+      - "5000:5000"
+
+  goweb-svc:
+    build: ./goweb-mid
+    links:
+      - goweb-backend
+      - pyweb-backend
+    environment:
+      - BACKEND_SVC=http://hostip:5003/
+    ports:
+      - "8081:80"
+
+  pyweb-svc:
+    build: ./python-mid
+    links:
+      - pythonapp
+      - pyweb-backend  
+    environment:
+      - PY_BACKEND=http://hostip:5001/
+    ports:
+      - "5004:5000"
+
+  goweb-backend:
+    build: ./goweb-backend
+    ports:
+      - "5003:5000"
+
+  pyweb-backend:
+    build: ./python-backend
+    ports:
+      - "5002:5000"
+
+  pythonapp:
+    build: ./python-dbapp
+    links:
+      - db
+    ports:
+      - "5001:5000"
+  db:
+    build: ./python-mysqldb
+    ports:
+      - "3306:3306"

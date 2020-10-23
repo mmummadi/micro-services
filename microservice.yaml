@@ -1,0 +1,386 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: py-goweb-svc
+  labels:
+    name: py-goweb
+spec:
+  ports:
+  - port: 5000
+    name: http
+  selector:
+    name: py-goweb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-backend-v1
+  labels:
+    version: v1
+    name: py-goweb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app1: python-backend
+      name: py-goweb
+      version: v1
+  template:
+    metadata:
+      labels:
+        app1: python-backend
+        name: py-goweb
+        version: v1
+    spec:
+      containers:
+      - name: python-backend
+        image: anguda/micro-services:python-backend
+        env:
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        imagePullPolicy: IfNotPresent #Always
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pythonapp
+  labels:
+    app1: python-backend
+spec:
+  ports:
+  - port: 5000
+    name: http
+  selector:
+    app1: python-backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-backend-v2
+  labels:
+    app1: python-backend
+    name: python-backend-v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app1: python-backend
+      name: python-backend-v2
+  template:
+    metadata:
+      labels:
+        app1: python-backend
+        name: python-backend-v2
+    spec:
+      containers:
+      - name: python-backend
+        image: anguda/micro-services:python-backend
+        env:
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        imagePullPolicy: IfNotPresent #Always
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: py-goweb-svc
+  labels:
+    name: py-goweb
+spec:
+  ports:
+  - port: 5000
+    targetPort: 5000
+    name: http
+  selector:
+    name: py-goweb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goweb-backend-v1
+  labels:
+    version: v1
+    name: py-goweb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goweb-backend
+      name: py-goweb
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: goweb-backend
+        name: py-goweb
+        version: v1
+    spec:
+      containers:
+      - name: goweb-backend
+        image: anguda/micro-services:go-backend
+        env:
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        imagePullPolicy: IfNotPresent #Always
+        ports:
+        - containerPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: db
+  name: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: db
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        name: db
+    spec:
+      containers:
+      - image: anguda/mysql
+        imagePullPolicy: ""
+        name: db
+        ports:
+        - containerPort: 3306
+        resources: {}
+      restartPolicy: Always
+      serviceAccountName: ""
+      volumes: null
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: db
+  name: db
+spec:
+  ports:
+  - name: "3306"
+    port: 3306
+    targetPort: 3306
+  selector:
+    name: db
+status:
+  loadBalancer: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app1: python-backend
+  name: python-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app1: python-backend
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app1: python-backend
+    spec:
+      containers:
+      - image: anguda/python-flask-app:web
+        imagePullPolicy: ""
+        name: python-db
+        ports:
+        - containerPort: 5000
+        resources: {}
+      restartPolicy: Always
+      serviceAccountName: ""
+      volumes: null
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app1: python-backend
+  name: python-db
+spec:
+  ports:
+  - name: "5000"
+    port: 5000
+    targetPort: 5000
+  selector:
+    app1: python-backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: goweb-svc
+  labels:
+    app: goweb-mid
+spec:
+  ports:
+  - port: 8080
+    targetPort: 80
+    name: http
+  selector:
+    app: goweb-mid
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goweb-mid-v1
+  labels:
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goweb-mid
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: goweb-mid
+        version: v1
+    spec:
+      containers:
+      - name: goweb-mid
+        image: anguda/micro-services:go-mid
+        env:
+          - name: BACKEND_SVC
+            value: "http://py-goweb-svc:5000/"
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        imagePullPolicy: IfNotPresent #Always
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pyweb-svc
+  labels:
+    app: python-mid
+spec:
+  ports:
+  - port: 5000
+    name: http
+  selector:
+    app: python-mid
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-mid-v1
+  labels:
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-mid
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: python-mid
+        version: v1
+    spec:
+      containers:
+      - name: python-mid
+        image: anguda/micro-services:python-mid
+        env:
+          - name: PY_BACKEND
+            value: "http://pythonapp:5000/"
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        imagePullPolicy: IfNotPresent #Always
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-frontend
+  labels:
+    app: python-frontend
+spec:
+  ports:
+  - port: 5000
+    name: http
+  selector:
+    app: python-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-frontend-v1
+  labels:
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-frontend
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: python-frontend
+        version: v1
+    spec:
+      containers:
+      - name: python-frontend
+        image: anguda/micro-services:python-frontend
+        env:
+          - name: GO_BACKEND
+            value: "http://goweb-svc:8080/"
+          - name: PY_BACKEND
+            value: "http://pyweb-svc:5000/"
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        imagePullPolicy: IfNotPresent #Always
+        ports:
+        - containerPort: 5000
